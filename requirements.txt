@@ -1,0 +1,9 @@
+torch
+transformers
+diffusers
+accelerate
+mne
+numpy
+scikit-learn
+scipy
+ftfy
