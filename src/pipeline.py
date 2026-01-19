@@ -38,19 +38,12 @@ class EEG2DreamPipeline:
             self.tokenizer = None
         else:
             # 1. 加载冻结的 SD 组件
-            try:
-                self.vae = AutoencoderKL.from_pretrained(model_id, subfolder="vae").to(device)
-                self.unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet").to(device)
-                self.scheduler = DDPMScheduler.from_pretrained(model_id, subfolder="scheduler")
-                self.tokenizer = CLIPTokenizer.from_pretrained(model_id, subfolder="tokenizer")
-                self.text_encoder = CLIPTextModel.from_pretrained(model_id, subfolder="text_encoder").to(device)
-            except Exception as e:
-                print(f"Error loading SD model: {e}")
-                print("Falling back to DEBUG mode with mock objects.")
-                self.vae = self._get_mock_vae()
-                self.unet = self._get_mock_unet()
-                self.scheduler = DDPMScheduler()
-                self.text_encoder = nn.Linear(1, 1).to(device)
+            # Strict mode: Do not fallback to mock if loading fails
+            self.vae = AutoencoderKL.from_pretrained(model_id, subfolder="vae").to(device)
+            self.unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet").to(device)
+            self.scheduler = DDPMScheduler.from_pretrained(model_id, subfolder="scheduler")
+            self.tokenizer = CLIPTokenizer.from_pretrained(model_id, subfolder="tokenizer")
+            self.text_encoder = CLIPTextModel.from_pretrained(model_id, subfolder="text_encoder").to(device)
 
         if not debug and hasattr(self.vae, 'requires_grad_'):
             # 冻结参数

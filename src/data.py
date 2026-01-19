@@ -5,28 +5,6 @@ from moabb.datasets import BNCI2014001
 from moabb.paradigms import MotorImagery
 from transformers import CLIPTokenizer, CLIPTextModel
 
-class DummyEEGDataset(Dataset):
-    """
-    虚拟 EEG 数据集 (Dummy EEG Dataset)
-    """
-    def __init__(self, num_samples=100, num_channels=32, time_steps=512, clip_embed_dim=768):
-        self.num_samples = num_samples
-        self.num_channels = num_channels
-        self.time_steps = time_steps
-        self.clip_embed_dim = clip_embed_dim
-        
-    def __len__(self):
-        return self.num_samples
-    
-    def __getitem__(self, idx):
-        eeg_data = torch.randn(self.num_channels, self.time_steps, dtype=torch.float32)
-        clip_image_embed = torch.randn(self.clip_embed_dim, dtype=torch.float32)
-        clip_image_embed = torch.nn.functional.normalize(clip_image_embed, dim=0)
-        return {
-            "eeg": eeg_data,
-            "clip_embed": clip_image_embed
-        }
-
 class RealEEGDataset(Dataset):
     """
     真实 EEG 数据集 (BNCI2014001 via MOABB)
@@ -106,13 +84,11 @@ class RealEEGDataset(Dataset):
             "clip_embed": clip_embed
         }
 
-def get_dataloader(batch_size=8, use_real_data=False):
-    if use_real_data:
-        try:
-            dataset = RealEEGDataset()
-            return DataLoader(dataset, batch_size=batch_size, shuffle=True)
-        except Exception as e:
-            print(f"Error loading Real Dataset ({e}). Falling back to Dummy Data.")
-            
-    dataset = DummyEEGDataset()
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+def get_dataloader(batch_size=8, use_real_data=True):
+    # Enforce real data usage
+    try:
+        dataset = RealEEGDataset()
+        return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    except Exception as e:
+        print(f"CRITICAL ERROR: Failed to load Real EEG Dataset. {e}")
+        raise e
