@@ -14,6 +14,13 @@ This project is designed with modularity in mind ("Lego-like" architecture) to s
 
 ## How to Run
 
+### Option 1: Google Colab (Recommended for GPU)
+To train the model properly and generate videos without waiting hours, use the provided notebook:
+1. Upload `DeepDream_4D_Colab.ipynb` to [Google Colab](https://colab.research.google.com/).
+2. Change Runtime to **GPU** (T4 is free).
+3. Run all cells.
+
+### Option 2: Local CPU/GPU
 1. **Install Dependencies**:
    ```bash
    pip install -r requirements.txt
@@ -23,7 +30,7 @@ This project is designed with modularity in mind ("Lego-like" architecture) to s
    ```bash
    python main.py
    ```
-   *Note: On the first run, it attempts to download Stable Diffusion v1-5. If internet is slow or restricted (e.g. without HF Token), it will automatically fallback to a DEBUG mode using mock layers to demonstrate the tensor flow and training logic.*
+   *Note: On CPU, video generation will be extremely slow. The script automatically reduces inference steps to 2 for CPU demos.*
 
 ## Key Features Implemented
 

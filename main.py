@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
 from src.pipeline import EEG2DreamPipeline
+from src.video_pipeline import EEG2VideoPipeline
 from src.data import get_dataloader
 
 def save_visualization(eeg_data, generated_image, epoch, save_dir="results"):
@@ -55,17 +56,19 @@ def main():
     print(f"CLIP Target Shape: {sample_batch['clip_embed'].shape}") 
 
     # 3. Instantiate Pipeline with Correct Dimensions
-    print("\n[Step 2] Initializing Pipeline...")
+    print("\n[Step 2] Initializing Pipeline (Phase 2: Video Capable)...")
     pipeline = None
     try:
-        pipeline = EEG2DreamPipeline(
+        # Use EEG2VideoPipeline which extends EEG2DreamPipeline
+        pipeline = EEG2VideoPipeline(
             device=device,
             num_eeg_channels=eeg_channels,
             eeg_time_steps=eeg_time_steps
         )
     except Exception as e:
-        print(f"Warning: Could not download/load Stable Diffusion model: {e}")
+        print(f"Warning: Could not download/load models: {e}")
         print("Retrying in DEBUG mode (using mock SD components)...")
+        # Fallback to base pipeline in debug mode
         pipeline = EEG2DreamPipeline(
             device=device, 
             debug=True,
@@ -99,10 +102,26 @@ def main():
         
         # Save Result
         save_visualization(single_eeg, images, epoch=1)
-    
-    # 7. Future Roadmap: Stable Video Diffusion
-    print("\n=== Future Roadmap: Accessing Stable Video Diffusion (SVD) ===")
-    print("Code for SVD Pipeline is now being generated in src/video_pipeline.py")
+
+        # 7. Phase 2: Video Generation
+        print("\n=== Phase 2: The 4D World (Video Generation) ===")
+        if isinstance(pipeline, EEG2VideoPipeline) and pipeline.svd_pipeline is not None:
+            print("Stable Video Diffusion is ready. Generating video from dream...")
+            video_path = os.path.join("results", "dream_video.mp4")
+            try:
+                # Generate video using the same EEG sample
+                # Use fewer steps for CPU demo to avoid long wait (default 25)
+                steps = 2 if device == "cpu" else 25
+                print(f"Running SVD with {steps} inference steps for demo...")
+                saved_path = pipeline.generate_video(single_eeg, output_path=video_path, num_inference_steps=steps)
+                if saved_path:
+                    print(f"SUCCESS: Video saved to {saved_path}")
+                else:
+                    print("Video generation returned None.")
+            except Exception as e:
+                print(f"Error during video generation: {e}")
+        else:
+            print("Skipping video generation (SVD not loaded or pipeline in debug mode).")
 
 if __name__ == "__main__":
     main()

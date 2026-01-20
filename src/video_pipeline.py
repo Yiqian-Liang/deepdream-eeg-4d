@@ -43,7 +43,7 @@ class EEG2VideoPipeline(EEG2DreamPipeline):
             self.svd_pipeline = None
 
     @torch.no_grad()
-    def generate_video(self, eeg_sample, output_path="dream_video.mp4"):
+    def generate_video(self, eeg_sample, output_path="dream_video.mp4", num_inference_steps=25):
         """
         Full Pipeline: EEG -> Image -> Video
         """
@@ -63,13 +63,14 @@ class EEG2VideoPipeline(EEG2DreamPipeline):
             image_pil = image_pil.resize((1024, 576)) # SVD preferred resolution
             
         # Step 2: Generate Video (Phase 2)
-        print("Dreaming in 4D (Generating Video)...")
+        print(f"Dreaming in 4D (Generating Video, Steps={num_inference_steps})...")
         frames = self.svd_pipeline(
             image_pil, 
             decode_chunk_size=8,
             generator=torch.manual_seed(42),
             motion_bucket_id=127, # Higher = more motion
-            noise_aug_strength=0.1
+            noise_aug_strength=0.1,
+            num_inference_steps=num_inference_steps
         ).frames[0]
 
         # Step 3: Save

@@ -7,3 +7,5 @@ numpy
 scikit-learn
 scipy
 ftfy
+opencv-python
+matplotlib
