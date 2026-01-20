@@ -135,31 +135,33 @@ class EEG2DreamPipeline:
         self.dream_adapter.eval()
         
         # 1. Prepare Condition
+        # Ensure input is on device
         eeg_input = eeg_sample.unsqueeze(0).to(self.device) # (1, C, T)
-        eeg_embedding = self.eeg_encoder(eeg_input) # (1, 768)
         
-        # Adapter: (1, 768) -> (1, 77, 768)
-        cond_embeddings = self.dream_adapter(eeg_embedding)
+        # Forward pass through custom models (usually float32)
+        eeg_embedding = self.eeg_encoder(eeg_input) # (1, 768)
+        cond_embeddings = self.dream_adapter(eeg_embedding) # (1, 77, 768)
         
         # Unconditional embeddings (for classifier-free guidance)
-        # Usually we use empty string "" for uncond
-        # Here we just use zero tensor or similar noise for simplicity in MVP
         uncond_embeddings = torch.zeros_like(cond_embeddings)
         
         # Concatenate
         text_embeddings = torch.cat([uncond_embeddings, cond_embeddings])
+        
+        # CRITICAL FIX: Cast embeddings to match UNet dtype (e.g., float16)
+        text_embeddings = text_embeddings.to(dtype=self.unet.dtype)
         
         # 2. Initialize Latents
         height, width = 512, 512
         latents = torch.randn(
             (1, self.unet.config.in_channels, height // 8, width // 8),
             device=self.device,
-            dtype=self.unet.dtype
+            dtype=self.unet.dtype # Ensure latents match UNet dtype
         )
         
         # 3. Denoising Loop
         self.scheduler.set_timesteps(num_inference_steps)
-        print("Denoising latents with EEG conditioning...")
+        print(f"Denoising latents with EEG conditioning (dtype={self.unet.dtype})...")
         
         for t in self.scheduler.timesteps:
             # Expand latents for CFG
@@ -181,6 +183,7 @@ class EEG2DreamPipeline:
             latents = self.scheduler.step(noise_pred, t, latents).prev_sample
             
         # 4. Decode
+        # Ensure latents are in correct dtype for VAE (should be already, but VAE might be fp16)
         image = self.vae.decode(latents).sample
         
         # Post-process
