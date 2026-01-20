@@ -56,6 +56,15 @@ class EEG2VideoPipeline(EEG2DreamPipeline):
         # Note: self.generate returns numpy array (H, W, 3)
         image_np = self.generate(eeg_sample)
         
+        # Memory Optimization: Offload Phase 1 models to CPU to free up VRAM for SVD
+        print("Offloading Phase 1 models to CPU to save memory...")
+        self.vae.to("cpu")
+        self.unet.to("cpu")
+        self.text_encoder.to("cpu")
+        self.eeg_encoder.to("cpu")
+        self.dream_adapter.to("cpu")
+        torch.cuda.empty_cache()
+        
         # SVD expects PIL Image
         from PIL import Image
         image_pil = Image.fromarray((image_np * 255).astype(np.uint8))
@@ -64,16 +73,20 @@ class EEG2VideoPipeline(EEG2DreamPipeline):
             
         # Step 2: Generate Video (Phase 2)
         print(f"Dreaming in 4D (Generating Video, Steps={num_inference_steps})...")
-        frames = self.svd_pipeline(
-            image_pil, 
-            decode_chunk_size=8,
-            generator=torch.manual_seed(42),
-            motion_bucket_id=127, # Higher = more motion
-            noise_aug_strength=0.1,
-            num_inference_steps=num_inference_steps
-        ).frames[0]
+        try:
+            frames = self.svd_pipeline(
+                image_pil, 
+                decode_chunk_size=8,
+                generator=torch.manual_seed(42),
+                motion_bucket_id=127, # Higher = more motion
+                noise_aug_strength=0.1,
+                num_inference_steps=num_inference_steps
+            ).frames[0]
 
-        # Step 3: Save
-        print(f"Saving video to {output_path}...")
-        export_to_video(frames, output_path, fps=7)
-        return output_path
+            # Step 3: Save
+            print(f"Saving video to {output_path}...")
+            export_to_video(frames, output_path, fps=7)
+            return output_path
+        except Exception as e:
+            print(f"Error during video generation: {e}")
+            return None

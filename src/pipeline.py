@@ -39,11 +39,14 @@ class EEG2DreamPipeline:
         else:
             # 1. 加载冻结的 SD 组件
             # Strict mode: Do not fallback to mock if loading fails
-            self.vae = AutoencoderKL.from_pretrained(model_id, subfolder="vae").to(device)
-            self.unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet").to(device)
+            # Memory Optimization: Use fp16 if on CUDA
+            dtype = torch.float16 if device == "cuda" else torch.float32
+            
+            self.vae = AutoencoderKL.from_pretrained(model_id, subfolder="vae", torch_dtype=dtype).to(device)
+            self.unet = UNet2DConditionModel.from_pretrained(model_id, subfolder="unet", torch_dtype=dtype).to(device)
             self.scheduler = DDPMScheduler.from_pretrained(model_id, subfolder="scheduler")
             self.tokenizer = CLIPTokenizer.from_pretrained(model_id, subfolder="tokenizer")
-            self.text_encoder = CLIPTextModel.from_pretrained(model_id, subfolder="text_encoder").to(device)
+            self.text_encoder = CLIPTextModel.from_pretrained(model_id, subfolder="text_encoder", torch_dtype=dtype).to(device)
 
         if not debug and hasattr(self.vae, 'requires_grad_'):
             # 冻结参数
