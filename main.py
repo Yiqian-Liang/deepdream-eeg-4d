@@ -1,6 +1,9 @@
 import torch
 import sys
 import os
+# Set allocator config to avoid fragmentation
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
