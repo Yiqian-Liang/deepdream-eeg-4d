@@ -3,6 +3,7 @@ transformers
 diffusers
 accelerate
 mne
+moabb
 numpy
 scikit-learn
 scipy
