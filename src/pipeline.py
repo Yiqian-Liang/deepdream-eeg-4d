@@ -88,31 +88,53 @@ class EEG2DreamPipeline:
         return MockVAE()
 
         
-    def train(self, dataloader, num_epochs=1):
+    def train(self, dataloader, num_epochs=1, mode="pretrain"):
         """
-        训练循环
+        双阶段训练循环
         
-        Phase 1 重点:
-        使用 CosineSimilarityLoss 对齐 EEG Embedding 和 CLIP Image Embedding。
+        Args:
+            mode: "pretrain" (Stage A: THINGS-EEG) or "finetune" (Stage B: DREAM)
         """
         self.eeg_encoder.train()
         self.dream_adapter.train()
         
-        loss_fn = nn.CosineEmbeddingLoss()
+        # Loss Function 策略
+        if mode == "pretrain":
+            # Stage A: 强对齐 (EEG -> Image)
+            # 使用 CosineEmbeddingLoss 或 InfoNCE
+            loss_fn = nn.CosineEmbeddingLoss()
+            print("Training Stage A: Pre-training on Visual EEG (THINGS)...")
+        else:
+            # Stage B: 语义微调 (EEG -> Text)
+            # 梦境数据噪声大，使用 MSE 可能更稳，或者继续用 Cosine
+            loss_fn = nn.CosineEmbeddingLoss()
+            print("Training Stage B: Fine-tuning on Dream Reports (DREAM)...")
         
         for epoch in range(num_epochs):
-            progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
+            progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs} ({mode})")
             for batch in progress_bar:
+                # 1. 准备输入
                 eeg = batch['eeg'].to(self.device) # (B, Channels, Time)
-                clip_target = batch['clip_embed'].to(self.device) # (B, 768)
+                
+                # 2. 准备目标 (根据阶段不同)
+                if mode == "pretrain":
+                    # Target is Image Embedding
+                    target_embed = batch['clip_target'].to(self.device) # (B, 768)
+                else:
+                    # Target is Text Embedding (Compute on the fly)
+                    input_ids = batch['input_ids'].to(self.device) # (B, 77)
+                    with torch.no_grad():
+                        target_embed = self.text_encoder(input_ids)[1] # pooler_output (B, 768)
+                        # Normalize text embed
+                        target_embed = target_embed / target_embed.norm(dim=-1, keepdim=True)
                 
                 # Forward
                 eeg_features = self.eeg_encoder(eeg) # (B, 768)
                 
                 # Loss Calculation
                 # Target is 1.0 (maximize similarity)
-                target = torch.ones(eeg.shape[0]).to(self.device)
-                loss = loss_fn(eeg_features, clip_target, target)
+                target_label = torch.ones(eeg.shape[0]).to(self.device)
+                loss = loss_fn(eeg_features, target_embed, target_label)
                 
                 # Backward
                 self.optimizer.zero_grad()
@@ -121,7 +143,7 @@ class EEG2DreamPipeline:
                 
                 progress_bar.set_postfix({"loss": loss.item()})
                 
-        print("Training finished.")
+        print(f"Training ({mode}) finished.")
 
     @torch.no_grad()
     def generate(self, eeg_sample, num_inference_steps=20):
